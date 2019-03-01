@@ -1,0 +1,4 @@
+//config and db files
+pql_dir/
+*.config
+*.pql
