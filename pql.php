@@ -1,4 +1,12 @@
 <?php
+/*
+ * PQL (Paperless Query Language) is a PHP Open Source project hosted on GitHub.
+ * PQL is developed by Ghazi Khan (https://github.com/mgks) under MIT Open Source License.
+ * This program is free to use for private and commercial purposes.
+ * It will be generous to mention project source or developer in your Application's License(s) Wiki.
+ * Giving right credit to developers encourages them to create better projects :)
+*/
+
 error_reporting(-1);
 ini_set('display_errors', 'On');
 
@@ -38,6 +46,24 @@ class PQL{
         }
     }
 
+    // query function
+    function que($query){
+        $v = $this->validate($query);
+        if($v['status']){
+            switch($v['req_t']){
+                case 1:
+                return $this->sel($v['']);
+            }
+            if($v['req_t'] == 1){
+                return $this->sel();
+            }else if($v['req_t'] == 2){
+
+            }
+        }else{
+            $this->throw_error();
+        }
+    }
+
     // create new table
     function cre($query){
         if($this->validate($query)){
@@ -48,9 +74,12 @@ class PQL{
 
     // add to table
     function add($query){
-        if($this->validate($query)){
-            $handle = fopen($this->database, 'w') or die('cannot open file: '.$this->database);
-            $data = $query;
+        $this->validate($query);
+        if($v['status']){
+            $content = file_get_contents($this->database);
+            file_put_contents($this->database, $content, FILE_APPEND);
+            //$handle = fopen($this->database, 'w') or die('cannot open file: '.$this->database);
+            //$data = $query;
             if(fwrite($handle, $data)){
                 return true;
             }else{
