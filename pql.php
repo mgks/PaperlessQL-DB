@@ -7,8 +7,8 @@
  * Giving right credit to developers encourages them to create better projects :)
 */
 
-error_reporting(-1);
-ini_set('display_errors', 'On');
+//error_reporting(-1);
+//ini_set('display_errors', 'On');
 
 class PQL{
     
@@ -49,42 +49,47 @@ class PQL{
     // query function
     function que($query){
         $v = $this->validate($query);
-        if($v['status']){
-            switch($v['req_t']){
-                case 1:
-                return $this->sel($v['']);
-            }
-            if($v['req_t'] == 1){
-                return $this->sel();
-            }else if($v['req_t'] == 2){
-
-            }
+        echo $v['req_t']."<br>";
+        echo $v['data']['values']."<br>";
+        echo $v['data']['table']."<br>";
+        echo $v['data']['table_t']."<br>";
+        echo $v['data']['cond']['col']."<br>";
+        echo $v['data']['cond']['del']."<br>";
+        echo $v['data']['cond']['val']."<br>";
+        echo $v['data']['ord']."<br>";
+        echo $v['data']['lim']."<br>";
+        //print_r($v);
+        /*        if($v['status']){
+            return $this->sel($v['data']);
         }else{
             $this->throw_error();
-        }
+        }*/
     }
 
     // create new table
-    function cre($query){
-        if($this->validate($query)){
-            $output = "";
-            $this->output($output);
-        }
+    function cre($data){
+        
     }
 
     // add to table
-    function add($query){
-        $this->validate($query);
-        if($v['status']){
-            $content = file_get_contents($this->database);
+    function add($data){
+        $table = $data['table'];
+        $values = $data['values'];
+        $temp_table = $data['temp_table'];
+
+        $temp = fopen($temp_table, "w") or die($this->throw_error(6));
+        if(fwrite($temp, $values)){
+            $content = file_get_contents($temp_table);
             file_put_contents($this->database, $content, FILE_APPEND);
-            //$handle = fopen($this->database, 'w') or die('cannot open file: '.$this->database);
-            //$data = $query;
-            if(fwrite($handle, $data)){
-                return true;
-            }else{
-                return false;
-            }
+        }
+
+
+        //$handle = fopen($this->database, 'w') or die('cannot open file: '.$this->database);
+        //$data = $query;
+        if(fwrite($handle, $data)){
+            return true;
+        }else{
+            return false;
         }
     }
 
@@ -109,21 +114,38 @@ class PQL{
 
     // validating requested query
     private function validate($query){
+        $ar = array();
+        $ar['status'] = true;
         if(file_exists($this->database)){
-            if(preg_match("/([0-9a-zA-Z])\s+([0-9a-zA-Z])/", $query, $matches)){
-                $this->throw_error(1, $matches[0]);
-                return false;
+            preg_match("/([a-z]+)\s+([a-z0-9,_:\s]+)\s(in|from)\s([a-z_]+)(\s(where)\s([a-z_]+)\s?([=><])\s?([0-9]+))?(\s(ord)\s(asc|desc))?(\s(lim)\s([0-9]))?/i", $query, $chop);
+
+            if($chop[0]!=$query){
+                $te = $this->throw_error(1, $chop[0]);
+                $ar['status'] = false;
+                $ar['error'] = $te['error'];
             }else{
-                return true;
-            }       
+                $ar['req_t']            = $chop[1];
+                $ar['data']['values']   = $chop[2];
+                $ar['data']['table']    = $chop[4];
+                $ar['data']['table_t']  = "temp_".$chop[4];
+
+                $ar['data']['cond']['col'] = empty($chop[7])?null:$chop[7];
+                $ar['data']['cond']['del'] = empty($chop[8])?null:$chop[8];
+                $ar['data']['cond']['val'] = empty($chop[9])?null:$chop[9];
+
+                $ar['data']['order']    = empty($chop[12])?null:$chop[12];
+                $ar['data']['limit']    = empty($chop[15])?null:$chop[15];
+            }
         }else{
+            $ar['status'] = false;
             if($this->automate){
                 $this->new_pql();
             }else{
-                $this->throw_error(2);
+                $te = $this->throw_error(2);
+                $ar['error'] = $te['error'];
             }
-            return false;
         }
+        return $ar;
     }
 
     // data output
@@ -132,11 +154,12 @@ class PQL{
     }
 
     // throwing errors
-    private function throw_error($err_code = 0, $error = ""){
-        $error .= "<code>";
+    private function throw_error($err_code = 0, $message = ""){
+        $ar = array();
+        $error = "<code>";
         switch($err_code){
             case 1: //validate(); query error
-            $error .= "there's an error near <b style=\"text-decoration:underline;color:red\">".$error."</b>, please fix this to execute the program correctly.";
+            $error .= 'there\'s an error near <b style="text-decoration:underline;color:red">'.$message.'</b>, please fix this to execute the program correctly.';
             break;
 
             case 2: //validate(); database file existence
@@ -148,7 +171,7 @@ class PQL{
             break;
 
             case 4: //new_pql(); database creation success
-            $error .= "database creation successful <b>".$error."</b>.";
+            $error .= "database creation successful <b>".$message."</b>.";
             break;
 
             case 5: //new_pql(); database creation failure
@@ -163,6 +186,9 @@ class PQL{
         if($this->throw_error){
             echo $error;
         }
+        $ar['code'] = $err_code;
+        $ar['error'] = $error;
+        return $ar;
     }
 }
 
@@ -171,6 +197,15 @@ $pql = new PQL();
 //$pql->database = "db.pql";
 //$pql->throw_error = false;
 //echo $pql->cre("batman, superman, arithematica gotham");
-echo $pql->add("15, ffg");
-echo $pql->sel("id, name");
+echo "<br>CREATE:<br>";
+echo $pql->que("CRE id, facebook, time IN bat_gadgets");
+echo "<br>ADD:<br>";
+echo $pql->que("ADD 1, batmobil, :time IN batman");
+echo "<br>UPDATE:<br>";
+echo $pql->que("UPD 1, batmobil, :time IN batman where id=4");
+echo "<br>SELECT:<br>";
+echo $pql->que("SEL 43 FROM batman where active=1 ord desc lim 5");
+echo "<br>DELETE:<br>";
+echo $pql->que("DEL 23 FROM batman");
+//echo $pql->sel("id, name");
 ?>
