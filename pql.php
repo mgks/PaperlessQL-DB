@@ -11,13 +11,13 @@
 //ini_set('display_errors', 'On');
 
 class PQL{
-    
+
     private $output = NULL;         //output variable
     private $pql_dir = "pql_dir";   //PQL's working directory to save databases and config files
     private $db_name = "db";        //default database name
     private $db_ext = ".pql";       //PQL default file type
     private $automate = false;      //automate PQL process
-    private $throw_error = true;    //throw tailored errors on screen
+    private $throw_error = false;    //throw tailored errors on screen
 
     private $database = null;
 
@@ -48,16 +48,32 @@ class PQL{
 
     // query function
     function que($query){
-        $v = $this->validate($query);
-        echo $v['req_t']."<br>";
-        echo $v['data']['values']."<br>";
-        echo $v['data']['table']."<br>";
-        echo $v['data']['table_t']."<br>";
-        echo $v['data']['cond']['col']."<br>";
-        echo $v['data']['cond']['del']."<br>";
-        echo $v['data']['cond']['val']."<br>";
-        echo $v['data']['ord']."<br>";
-        echo $v['data']['lim']."<br>";
+        $j = $this->juicer($query);
+        $d = $this->curator($j);
+        
+        echo $d['values'];
+        
+        switch($j['req_t']){
+            case "CRE":
+                $req = 1;
+            break;
+            case "ADD":
+                $this->add($d);
+            break;
+            case "SEL":
+                $req = 3;
+            break;
+            case "UPD":
+                $req = 4;
+            break;
+            case "DEL":
+                $req = 5;
+            break;
+            default:
+                $this->throw_error();
+            break;
+        }
+        
         //print_r($v);
         /*        if($v['status']){
             return $this->sel($v['data']);
@@ -73,16 +89,18 @@ class PQL{
 
     // add to table
     function add($data){
-        $table = $data['table'];
+        $table = $this->locator($data['table']); // defining the table file
+        $temp_table = $this->locator($data['temp_table']); //defining temp data table
         $values = $data['values'];
-        $temp_table = $data['temp_table'];
 
         $temp = fopen($temp_table, "w") or die($this->throw_error(6));
-        if(fwrite($temp, $values)){
-            $content = file_get_contents($temp_table);
-            file_put_contents($this->database, $content, FILE_APPEND);
-        }
 
+		$row_id = $this->get_row($table);
+
+		if(fwrite($temp, $values)){
+            $content = file_get_contents($temp_table);
+            file_put_contents($table, (file_exists($table)?"\n":"").($row_id+1).','.$content, FILE_APPEND);
+        }
 
         //$handle = fopen($this->database, 'w') or die('cannot open file: '.$this->database);
         //$data = $query;
@@ -113,7 +131,7 @@ class PQL{
     }
 
     // validating requested query
-    private function validate($query){
+    private function juicer($query){
         $ar = array();
         $ar['status'] = true;
         if(file_exists($this->database)){
@@ -127,7 +145,6 @@ class PQL{
                 $ar['req_t']            = $chop[1];
                 $ar['data']['values']   = $chop[2];
                 $ar['data']['table']    = $chop[4];
-                $ar['data']['table_t']  = "temp_".$chop[4];
 
                 $ar['data']['cond']['col'] = empty($chop[7])?null:$chop[7];
                 $ar['data']['cond']['del'] = empty($chop[8])?null:$chop[8];
@@ -146,6 +163,28 @@ class PQL{
             }
         }
         return $ar;
+    }
+    
+    private function curator($j){
+        $d = array();
+        //table details
+        $d['req']        = $j['req_t'];
+        $d['table']      = $j['data']['table'];
+        $d['temp_table'] = 'temp_'.$j['data']['table'];
+        $d['values']     = $j['data']['values'];
+        
+        if(preg_match('/\:time/i',$d['values'])){
+            $d['values'] = preg_replace('/\:time/',date("h:i:s"),$d['values']);
+        }
+
+        //conditions
+        $d['cond_col']    = $j['data']['cond']['col'];
+        $d['cond_del']    = $j['data']['cond']['del'];
+        $d['cond_val']    = $j['data']['cond']['val'];
+        $d['cond_ord']    = $j['data']['ord'];
+        $d['limit']       = $j['data']['lim'];
+        
+        return $d;
     }
 
     // data output
@@ -178,6 +217,10 @@ class PQL{
             $error .= "database creation failed.";
             break;
 
+			case 6:
+			$error .= "file creation failed. check file access permissions.";
+			break;
+			
             default: //default
             $error .= "invalid syntax!";
             break;
@@ -190,6 +233,24 @@ class PQL{
         $ar['error'] = $error;
         return $ar;
     }
+	
+	
+	//locating table file in the directory
+	function locator($table){
+		return $this->pql_dir.'/'.$table.''.$this->db_ext;
+	}
+	
+	//getting row id for new entry
+	function get_row($file){
+		$id = 0;
+		$handle = fopen($file, "r");
+		while(!feof($handle)){
+		  $line = fgets($handle);
+		  $id++;
+		}
+		fclose($handle);
+		return $id;
+	}
 }
 
 $pql = new PQL();
@@ -197,15 +258,15 @@ $pql = new PQL();
 //$pql->database = "db.pql";
 //$pql->throw_error = false;
 //echo $pql->cre("batman, superman, arithematica gotham");
-echo "<br>CREATE:<br>";
-echo $pql->que("CRE id, facebook, time IN bat_gadgets");
-echo "<br>ADD:<br>";
-echo $pql->que("ADD 1, batmobil, :time IN batman");
-echo "<br>UPDATE:<br>";
-echo $pql->que("UPD 1, batmobil, :time IN batman where id=4");
-echo "<br>SELECT:<br>";
-echo $pql->que("SEL 43 FROM batman where active=1 ord desc lim 5");
-echo "<br>DELETE:<br>";
-echo $pql->que("DEL 23 FROM batman");
+//echo "<br>CREATE:<br>";
+//$pql->que("CRE id, facebook, time IN bat_gadgets");
+echo "ADD:<hr>";
+$pql->que("ADD 4, batrang, :time IN batman");
+//echo "<br>UPDATE:<br>";
+//echo $pql->que("UPD 1, batmobil, :time IN batman where id=4");
+//echo "<br>SELECT:<br>";
+//echo $pql->que("SEL 1 FROM batman where active=1 ord desc lim 1");
+//echo "<br>DELETE:<br>";
+//echo $pql->que("DEL 23 FROM batman");*/
 //echo $pql->sel("id, name");
 ?>
