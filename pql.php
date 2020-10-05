@@ -7,8 +7,8 @@
  * Giving right credit to developers encourages them to create better projects :)
 */
 
-//error_reporting(-1);
-//ini_set('display_errors', 'On');
+error_reporting(-1);
+ini_set('display_errors', 'On');
 
 class PQL{
 
@@ -55,7 +55,7 @@ class PQL{
         
         switch($j['req_t']){
             case "CRE":
-                $req = 1;
+                $this->cre($d);
             break;
             case "ADD":
                 $this->add($d);
@@ -69,6 +69,9 @@ class PQL{
             case "DEL":
                 $req = 5;
             break;
+			case "LIST DATA":
+				$this->list($d);
+			break;
             default:
                 $this->throw_error();
             break;
@@ -84,7 +87,20 @@ class PQL{
 
     // create new table
     function cre($data){
-        
+		$table = $this->locator($data['table']);
+		$temp_table = $this->locator($data['temp_table']);
+		if(!file_exists($table)){
+			fopen($table, "w") or die($this->throw_error(6));
+			fopen($temp_table, "w") or die($this->throw_error(6));
+			if(file_exists($table)){
+				return true;
+			}else{
+				return false;
+			}
+		}else{
+			$this->throw_error(6);
+			return false;
+		}
     }
 
     // add to table
@@ -95,20 +111,34 @@ class PQL{
 
         $temp = fopen($temp_table, "w") or die($this->throw_error(6));
 
-		$row_id = $this->get_row($table);
-
 		if(fwrite($temp, $values)){
             $content = file_get_contents($temp_table);
-            file_put_contents($table, (file_exists($table)?"\n":"").($row_id+1).','.$content, FILE_APPEND);
-        }
+			if(!file_exists($table)){
+		        fopen($table, "w") or die($this->throw_error(6));
+				if(file_exists($table)){
+					$this->throw_error(7);
+				}
+			}
+			if(file_exists($table)){
+				$row_id = $this->get_row($table);
+				if(file_put_contents($table, (file_exists($table)?"\n":"").($row_id+1).','.$content, FILE_APPEND)){
+					return true;
+				}else{
+					return false;
+				}
+			}
 
-        //$handle = fopen($this->database, 'w') or die('cannot open file: '.$this->database);
-        //$data = $query;
+		}else{
+			return false;
+		}
+
+        /*$handle = fopen($this->database, 'w') or die('cannot open file: '.$this->database);
+        $data = $query;
         if(fwrite($handle, $data)){
             return true;
         }else{
             return false;
-        }
+        }*/
     }
 
     // alter table data
@@ -129,6 +159,11 @@ class PQL{
     // delete table row
     function del($query){
     }
+	
+	//listing table data and getting stats
+	function list($data){
+		
+	}
 
     // validating requested query
     private function juicer($query){
@@ -164,7 +199,7 @@ class PQL{
         }
         return $ar;
     }
-    
+
     private function curator($j){
         $d = array();
         //table details
@@ -217,10 +252,14 @@ class PQL{
             $error .= "database creation failed.";
             break;
 
-			case 6:
+			case 6: //file creation
 			$error .= "file creation failed. check file access permissions.";
 			break;
-			
+
+			case 7: //creating non existing tables
+			$error .= "table doesn't exist. created new file with table";
+			break;
+
             default: //default
             $error .= "invalid syntax!";
             break;
@@ -233,7 +272,6 @@ class PQL{
         $ar['error'] = $error;
         return $ar;
     }
-	
 	
 	//locating table file in the directory
 	function locator($table){
@@ -261,7 +299,7 @@ $pql = new PQL();
 //echo "<br>CREATE:<br>";
 //$pql->que("CRE id, facebook, time IN bat_gadgets");
 echo "ADD:<hr>";
-$pql->que("ADD 4, batrang, :time IN batman");
+$pql->que("ADD 4, batrang, :time IN batsy");
 //echo "<br>UPDATE:<br>";
 //echo $pql->que("UPD 1, batmobil, :time IN batman where id=4");
 //echo "<br>SELECT:<br>";
